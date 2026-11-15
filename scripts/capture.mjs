@@ -7,7 +7,7 @@
 import { createServer } from 'node:http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
-import puppeteer from '/root/fp-test/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
+import puppeteer from '/root/fp-test/node_modules/puppeteer/lib/puppeteer/puppeteer.js';
 
 const ROOT = new URL('../game/', import.meta.url).pathname;
 const OUT = new URL('../screenshots/', import.meta.url).pathname;
@@ -41,13 +41,16 @@ await new Promise((resolve) => server.listen(PORT, '127.0.0.1', resolve));
 await mkdir(OUT, { recursive: true });
 
 const browser = await puppeteer.launch({
-  headless: 'shell',
+  headless: true,
+  executablePath: '/root/.cache/ms-playwright/chromium-1148/chrome-linux/chrome',
   args: [
     '--no-sandbox',
     '--enable-unsafe-swiftshader',
     '--use-gl=angle',
     '--use-angle=swiftshader',
     '--hide-scrollbars',
+    '--disable-dev-shm-usage',
+    '--disable-gpu-sandbox',
     '--force-device-scale-factor=1',
   ],
 });
