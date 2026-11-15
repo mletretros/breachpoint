@@ -1,0 +1,23 @@
+Rewrite the game's world, art pass and sound for "Breachpoint". Read AGENTS.md first, and read game/src/world.js, game/src/palette.js, game/src/main.js before you change anything.
+
+Deliver these four files, complete, no placeholders:
+
+1. game/src/palette.js — keep the same module shape (PALETTE object + shade()). The look is a night yard lit by sodium lamps: canvas #101215, surface #1b1f24, hairline #2b3238, ink #ece7dc, muted #93999f, accent #f2a13c, plus two new names the map needs: steel #3d464d (metal crates, railings) and jade #2f6b57 (VANTA team light / pad glow). Comment why each value exists.
+
+2. game/src/world.js — createWorld(scene) builds the map "Cinder Yard", and returns { colliders, shootables, group, pads, spawns, lamps }. Requirements:
+   - A 40 x 40 m yard with 5 m perimeter walls, built only from boxes. open sky, fog handled by main.js.
+   - Lanes: a mid corridor from the attacker spawn (south, z +18) to the defender spawn (north, z -18), a west loading dock with two stacked container rows, and an east pipe gallery. Crates must offer crouch cover (0.9-1.2 m) and full cover (1.6-2.2 m) at chest height along each lane.
+   - Site B7: a raised 5 x 5 m pad at (x -8, z -6), 0.25 m high, with a low rail on three sides (so the pad reads clearly in a screenshot) and a jade-emissive rim light strip made from MeshStandardMaterial with emissive jade at 1.4 intensity. `pads[0]` must be a THREE.Box3 covering the walkable pad area, and pads[0].userData is not available, so also return `padCenter` as a THREE.Vector3 and `padRadius` as a number (2.2).
+   - `spawns` returns { vanta: [ {x,z}, ... 4 points along z +17 to +19 ], halo: [ ... 4 points along z -17 to -19 ] } so match.js can place teams.
+   - `lamps` returns an array of the sodium point lights you add (4 of them, accent colour, intensity 9, distance 22, decay 2), positioned so the yard reads in shadow with pools of light — this is what makes the screenshots look like a game and not a grey box.
+   - Every box is pushed to both colliders (THREE.Box3) and shootables (the mesh). Floor is not a shootable surface for bullets that matters, but keep it consistent: push it too.
+   - Add a shallow sky gradient via scene.background untouched (main.js owns it) plus a HemisphereLight of surface/canvas at 0.7 and one DirectionalLight (moonlight, ink colour, 1.1) casting shadows with a 2048 shadow map covering the whole yard.
+   - Materials: reuse a small material cache keyed by palette name; roughness 0.9 for walls and 0.55 for steel; metalness 0.05 walls, 0.35 steel.
+
+3. game/src/audio.js — createAudio() returns { gunshot(kind), hit(), kill(), reloadClick(), step(), padBeep(), roundStart(), roundWin(), roundLose(), transmit() } built only from the Web Audio API (oscillators, noise buffers made with a seeded PRNG, biquad filters, gain envelopes). It must lazily create its AudioContext on the first call (browsers block autoplay) expose `resume()` for main.js to call on the first click, and never throw if the context is missing. Each sound short: gunshot per weapon kind ('pistol' | 'smg' | 'rifle' | 'marksman') as a filtered noise burst plus a low sine thump, differing in decay time and filter cutoff; everything else a click, a beep or a two-note tone. Comment the synthesis choices.
+
+4. game/src/effects.js — createEffects(scene, camera) returns { tracer(fromVec3, toVec3), impact(pointVec3, normalVec3), muzzle(), flash(), step(dt), clear() }. Tracers are thin quads or Line segments with additive material, fading out over 80 ms, pooled and reused (hard cap 48 live tracers, oldest recycled). Impacts spawn 4-6 tiny sparks that fall with gravity and fade, plus a dark decal quad on the surface if the normal is given (hard cap 64 decals, oldest recycled). muzzle()/flash() drive a screen-edge additive quad that main.js toggles on the local shot. No textures loaded from disk: any sprite is drawn into a canvas at runtime. step(dt) advances fades and pooling.
+
+Constraints: no network, no external assets, ES modules only, every file must parse as an ES module (check each with: node --experimental-default-type=module --check <file>). Do not modify main.js, index.html, player.js, weapon.js or targets.js in this task — a later task wires them. Do not delete targets.js yet: something else imports it.
+
+When done, print a short report: files written, line counts, and the parse check result for each.

@@ -1,0 +1,21 @@
+Read game/src/world.js, game/src/palette.js, game/src/effects.js and AGENTS.md first, then rewrite two files completely.
+
+1. game/src/weapon.js — the arsenal and its ballistics. Export:
+   - `WEAPONS` array of four defs, each { id, name, kind, damage, headshotMultiplier, rpm, magSize, reserve, reloadSec, spreadDeg, recoilKick, falloff: { start, end, minFactor }, auto, price }. Weapons: VP-9 pistol (kind 'pistol', cheap, semi), K-7 smg (kind 'smg', auto, fast reload), AR-4 rifle (kind 'rifle', auto, the default buy), M-2 marksman (kind 'marksman', high damage, slow, semi). Names must stay exactly these.
+   - `createWeapon(id)` returning an object with { def, ammo, reserve, reloading, lastShotAt, canFire(now), fire(now) -> { ok, spreadRad, recoil } | { ok:false, reason }, startReload(now) -> boolean, stepReload(now) -> boolean (true when the reload finished this call), reloadProgress(now) -> 0..1, addReserve(n) }.
+   - `spreadFor(weapon, opts)` where opts = { moving, crouched, airborne } returns a spread in radians: base from def.spreadDeg, multiplied 1.9 when moving, 0.62 when crouched, 2.4 airborne, clamped to 6 degrees.
+   - `damageAt(weapon, distance)` applying the falloff curve, returning a float. Headshots multiply via the def value, keep that in the caller.
+   - `hitscan(origin, direction, colliders)` doing a pure-arithmetic ray vs array-of-THREE.Box3 test with the slab method (no THREE.Raycaster), returning { point, box, distance } or null. Take colliders as THREE.Box3 objects already in world space so there is no per-frame matrix work.
+   All frame-rate independent, no globals, no random() at module scope.
+
+2. game/src/player.js — the local player's body and camera. Export `createPlayer(camera, opts)` where opts = { world, effects, audio, onHit(amount, from) }, returning an object with:
+   - state fields: position (THREE.Vector3), velocity, yaw, pitch, health, armour, alive, crouched, onGround, eyeHeight.
+   - `update(dt, input)` where input is the existing input module's snapshot ({ forward, back, left, right, jump, crouch, sprint, mouseDX, mouseDY, firing, reload }); it must apply pointer-lock look to yaw/pitch with pitch clamped to +/- 88 degrees, accelerate on the ground with friction and air-control, resolve collisions against world.colliders with axis-separated AABB sweeps (do not tunnel at 60 fps; clamp dt to 1/30 per sub-step), handle crouch height 1.15 vs standing 1.72 eye height with a smooth lerp, jump from the ground only, and never leave the 40 x 40 yard.
+   - `weapon` slot accessors: `equip(id)`, `active()`, and `tryFire(now, opts)` returning the same shape as weapon.fire plus { hit } when a hitscan connected, driving effects.tracer and effects.impact and audio.gunshot(def.kind); the caller owns damage application.
+   - `takeDamage(amount, fromVec3)` reducing armour first then health, setting a `lastHitAt`, and never dropping below 0; calls opts.onHit.
+   - `respawnAt(x, z)`, `setLook(yawRad, pitchRad)`, and `mirror()` returning a THREE.Group holding a simple capsule + head + a forward stub that reads as a body in the third person (used by the death cam and by the hitbox debug), updated to track position each frame.
+   - Momentum must feel like a tactical shooter: walk 3.4 m/s, sprint 5.1 m/s with a weapon-lower flag, crouch 1.9 m/s, no bunny hopping (jump costs 12% of horizontal velocity).
+
+Constraints: plain ES modules, import three from 'three' and your own relative files only, no network, no assets, every file must pass `node --experimental-default-type=module --check <file>`. Keep the file free of DOM access so it can be imported headlessly. Do not modify main.js, hud.js, index.html or targets.js in this task.
+
+Report files written, line counts, and parse results.
