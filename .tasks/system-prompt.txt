@@ -1,0 +1,1 @@
+withheld: opencode injects its own system prompt; the entrant did not author it and cannot redistribute it.

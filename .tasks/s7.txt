@@ -1,0 +1,13 @@
+Task: harden the entrypoint of this repository. You are working in /root/projects/bounty/makefun/fps02, the entry for make.fun's threejs-fps-02 competition. The game itself is finished (game/, screenshots/). Your only job is main.ts, the program the grader runs: it copies game/ and screenshots/ into $MAKEFUN_OUTPUT_DIR and writes dossier.json, the artifact the judge reads.
+
+Rewrite main.ts so it is a real entrypoint for THIS game and refuses to package a broken build, while keeping the packaged bytes identical to what it produces today:
+
+1. Header comment: name the game (Breachpoint, VANTA vs HALO, Cinder Yard), say what the program does, and say how to run it locally (node serve.ts, then MAKEFUN_OUTPUT_DIR=out node main.ts).
+2. Keep the existing capture checks (3 or 4 screenshots, one of them the cover by filename order, name pattern, no dotfile, each at most 262144 bytes) and keep every error message specific.
+3. Add a check that game/index.html exists, is at most 1048576 bytes, and holds exactly one import map whose "three" entry is ./vendor/three/three.module.min.js.
+4. Add a check that no shipped file under game/ (html and js, skip game/vendor/) references anything off-disk: reject /https?:\/\//, /src\s*=\s*["']\/\// and dynamic import() of an absolute URL. Read the files as text and report the offending path.
+5. Add a check that game/ holds at most 993 files and 48 MiB in total, counting with lstat and refusing symlinks, and report the counts it saw.
+6. Call buildDossier with exactly these options and nothing else, so the dossier bytes stay byte-identical to the current build: { text_max_bytes: 163840, screenshots: { max: 4, max_bytes: 262144 }, game_max_files: 993, game_max_bytes: 50331648 }.
+7. Keep it stdlib-only and runnable with `node main.ts` on Node 22 (type stripping): no npm packages, no TypeScript-only syntax that needs erasure beyond type annotations. Named constants at the top for the caps instead of bare numbers inside functions.
+
+Do not touch game/, screenshots/, or the vendored library. When you are done, run `MAKEFUN_OUTPUT_DIR=/tmp/mfcheck node main.ts` and report the dossier size and that the exit status is 0.
