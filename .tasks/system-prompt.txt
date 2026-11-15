@@ -1,1 +1,1 @@
-withheld: opencode injects its own system prompt; the entrant did not author it and cannot redistribute it.
+withheld: opencode assembles its system prompt at runtime from the harness build and the tool list; the harness does not export it.
