@@ -270,60 +270,60 @@ function runShot(name) {
   match.start(0);
   
   if (name === 'buy') {
-    player.respawnAt(0, 17);
-    player.setLook(0, 0); // Z=17 is North, looks toward mid lane (which is around Z=0)
+    match.state.phase = 'buy';
+    match.state.roundNumber = 1;
+    player.respawnAt(0, -17);
+    player.setLook(Math.PI, 0); // Z=-17 looking South (+Z) towards Vanta bots at Z=18
+    bots.spawnWave(3, 1.0);
     settle(10);
     hud.showOverlay('buy', null);
   } else if (name === 'play') {
+    match.state.credits = 5000;
     match.buy('k7');
-    settle(10);
+    match.buy('armour');
     match.startLive(currentTime);
-    player.respawnAt(2, 6);
+    match.state.roundNumber = 3;
+    player.respawnAt(1.5, 7);
     player.setLook(0, 0);
-    bots.spawnWave(4, 1.0);
-    settle(180);
+    bots.spawnWave(3, 1.0);
+    bots.list[0].position.set(1.5, 0, -5);
+    bots.list[1].position.set(2.5, 0, -8);
+    bots.list[2].position.set(0.5, 0, -6);
     
-    let foundYaw = 0;
-    let foundPitch = 0;
-    let minDist = Infinity;
-    const origin = player.position.clone();
-    origin.y += player.eyeHeight;
-    for (let y = -Math.PI; y < Math.PI; y += 0.05) {
-      for (let p = -0.5; p < 0.5; p += 0.05) {
-        const dir = new THREE.Vector3(0, 0, -1);
-        const euler = new THREE.Euler(p, y, 0, 'YXZ');
-        dir.applyEuler(euler);
-        const hit = bots.raycastBots(origin, dir, 100);
-        if (hit && hit.distance < minDist) {
-          minDist = hit.distance;
-          foundYaw = y;
-          foundPitch = p;
-        }
-      }
-    }
-    player.setLook(foundYaw, foundPitch);
+    bots.damageBot(2, 1000, true);
+    settle(40);
+    
+    player.health = 78;
+    player.armour = 45;
+    player.active().ammo = 15;
     
     input.state.firing = true;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) {
       step(FIXED_STEP);
     }
     input.state.firing = false;
     hud.hideOverlay();
   } else if (name === 'site') {
+    match.state.credits = 4000;
     match.buy('ar4');
-    settle(10);
+    match.buy('armour');
     match.startLive(currentTime);
-    player.respawnAt(-8, -3.2);
-    player.setLook(0, 0);
-    bots.spawnWave(4, 1.0);
+    match.state.roundNumber = 5;
+    player.respawnAt(-4, -6);
+    player.setLook(Math.PI / 2, 0);
     
-    settle(30);
-    match.state.uplinkProgress = 0.65;
-    match.state.uplinkHolder = 'vanta';
+    bots.spawnWave(2, 1.0);
+    bots.list[0].position.set(-14, 0, -5);
+    bots.list[1].position.set(-15, 0, -7);
+    
+    settle(10);
+    match.state.uplinkProgress = 0.55;
+    match.state.uplinkHolder = 'halo';
     hud.hideOverlay();
   } else if (name === 'end') {
     match.state.scoreHalo = 5;
     match.state.scoreVanta = 4;
+    match.state.roundNumber = 9;
     match.endRound('halo', 'elimination', currentTime);
     settle(10);
     hud.showOverlay('matchEnd', 'HALO');

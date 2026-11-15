@@ -1,0 +1,14 @@
+Fix three defects that were found by looking at the rendered game. Read game/src/main.js, game/src/hud.js, game/src/player.js, game/src/match.js, game/src/bots.js first.
+
+A. The HUD renders health and armour as 0 during a live round. player.js owns those fields; main.js must read them by their real names and call hud.setHealth every frame. Health starts at 100, armour starts at 0 and is bought with credits: add an armour line to the buy overlay ($650, only enabled when credits allow) that carries into the next round. Health must never show 0 while the player is alive, and the buy overlay must show it correctly too.
+
+B. The deterministic shots do not show what a judge must see in a first-person shooter. Rework runShot so each scenario is unmistakably a game, driven through the same code paths the live game uses (never by writing DOM nodes from main.js):
+   - 'buy': player at the south spawn looking north up the mid lane, buy overlay visible with the four weapon buttons and the armour line, score bar and timer readable behind it, three VANTA bots standing at their spawn far down the lane so silhouettes are visible.
+   - 'play': player mid-lane around (1.5, 0, 7) in the live phase, two bots engaged 12 to 18 m ahead, one already dead on the ground, the player firing a burst so a tracer, a muzzle flash and a hit marker are on screen, HUD showing a real health value around 78, armour 0 to 100, ammo mid-magazine, timer counting down, uplink bar at zero.
+   - 'site': player standing on site B7 facing the uplink pillar, two bots visible down the west lane, uplink bar about 55 percent filled with the holder label HALO, health and ammo readable.
+   - 'end': match over overlay naming the winning side with both team scores, HUD frozen behind it.
+   Each shot sets a real round number, a phase string matching what it shows ('BUY', 'LIVE', 'MATCH OVER'), and ends frozen with window.__shotReady set after two paints.
+
+D. One 404 is logged on the buy shot. Find what the page requests that does not exist and remove the request; a favicon may be silenced with a data-URI link in index.html, anything else must be fixed rather than ignored.
+
+Constraints: do not create new source files in this task and do not touch world.js, weapon.js, audio.js, effects.js, palette.js or input.js. Plain ES modules, no network, no assets, every .js you touch must pass `node --experimental-default-type=module --check <file>`. Real working code only, no placeholders. Report files changed with line counts, parse results, and one line per item A, B, D on what you changed.

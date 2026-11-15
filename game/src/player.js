@@ -10,7 +10,7 @@ export function createPlayer(camera, opts) {
     yaw: 0,
     pitch: 0,
     health: 100,
-    armour: 100,
+    armour: 0,
     alive: true,
     crouched: false,
     onGround: false,
@@ -102,7 +102,6 @@ export function createPlayer(camera, opts) {
       player.position.set(x, 2.0, z);
       player.velocity.set(0, 0, 0);
       player.health = 100;
-      player.armour = 100;
       player.alive = true;
       player.lastHitAt = 0;
     },

@@ -103,6 +103,7 @@ export function createBots(scene, opts) {
   }
 
   return {
+    list: bots,
     spawnWave(count, difficulty) {
       this.clear();
       for (let i = 0; i < count; i++) {

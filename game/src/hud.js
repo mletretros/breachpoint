@@ -334,7 +334,8 @@ export function createHud() {
     { id: 'vp9', name: 'VP-9', price: 0 },
     { id: 'k7', name: 'K-7', price: 1250 },
     { id: 'ar4', name: 'AR-4', price: 2700 },
-    { id: 'm2', name: 'M-2', price: 4200 }
+    { id: 'm2', name: 'M-2', price: 4200 },
+    { id: 'armour', name: 'Armour', price: 650 }
   ];
   const buyBtns = [];
   for (const w of weapons) {
@@ -355,6 +356,7 @@ export function createHud() {
   container.appendChild(overlay);
 
   let hitTimer = 0;
+  let currentCredits = 0;
   let playHandler = null;
   let buyHandler = null;
 
@@ -370,8 +372,15 @@ export function createHud() {
 
   return {
     setHealth(hp, armour) {
-      healthEl.textContent = `+${Math.ceil(hp)}`;
+      const displayHp = (hp > 0) ? Math.max(1, Math.ceil(hp)) : Math.ceil(hp);
+      healthEl.textContent = `+${displayHp}`;
       armourEl.textContent = `*${Math.ceil(armour)}`;
+      
+      for (const btn of buyBtns) {
+        if (btn.dataset.id === 'armour') {
+          btn.disabled = currentCredits < 650 || armour >= 100;
+        }
+      }
     },
     setAmmo(mag, reserve, reloading) {
       ammoMag.textContent = mag;
@@ -380,6 +389,7 @@ export function createHud() {
       else ammoEl.classList.remove('reloading');
     },
     setRound({ phase, roundNumber, scoreHalo, scoreVanta, timeLeft, credits }) {
+      currentCredits = credits;
       scoreVantaEl.textContent = `VANTA ${scoreVanta}`;
       scoreHaloEl.textContent = `${scoreHalo} HALO`;
       const secs = Math.ceil(timeLeft / 1000);
@@ -389,7 +399,9 @@ export function createHud() {
       creditsEl.textContent = `$${credits}`;
       
       for (const btn of buyBtns) {
-        btn.disabled = credits < parseInt(btn.dataset.price, 10);
+        if (btn.dataset.id !== 'armour') {
+          btn.disabled = credits < parseInt(btn.dataset.price, 10);
+        }
       }
     },
     setWeapon(name) {

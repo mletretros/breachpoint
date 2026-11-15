@@ -99,6 +99,12 @@ export function createMatch(opts) {
 
     buy(weaponId) {
       if (state.phase !== 'buy') return false;
+      if (weaponId === 'armour') {
+        if (state.credits < 650 || player.armour >= 100) return false;
+        state.credits -= 650;
+        player.armour = 100;
+        return true;
+      }
       const def = WEAPONS.find(w => w.id === weaponId);
       if (!def || state.credits < def.price) return false;
       
