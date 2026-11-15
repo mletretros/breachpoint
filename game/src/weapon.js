@@ -1,96 +1,156 @@
-// One hitscan rifle: a view model, a magazine, a reload, and the spread that punishes moving.
-// It owns the numbers; main.js owns the ray and the damage.
-import * as THREE from 'three';
-import { PALETTE } from './palette.js';
+import { MathUtils, Vector3 } from 'three';
 
-const MAG_SIZE = 30;
-const RESERVE = 90;
-const FIRE_GAP = 0.096;
-const RELOAD_TIME = 1.9;
-const SPREAD_STILL = 0.0022;
-const SPREAD_MOVING = 0.028;
-const MOVE_REFERENCE = 5.2;
-const MUZZLE_TIME = 0.06;
+export const WEAPONS = [
+  {
+    id: 'vp9', name: 'VP-9', kind: 'pistol',
+    damage: 32, headshotMultiplier: 2.0, rpm: 400, magSize: 12, reserve: 36,
+    reloadSec: 1.5, spreadDeg: 0.8, recoilKick: 1.0,
+    falloff: { start: 10, end: 30, minFactor: 0.5 }, auto: false, price: 200
+  },
+  {
+    id: 'k7', name: 'K-7', kind: 'smg',
+    damage: 22, headshotMultiplier: 1.5, rpm: 800, magSize: 30, reserve: 90,
+    reloadSec: 1.2, spreadDeg: 1.2, recoilKick: 0.8,
+    falloff: { start: 8, end: 20, minFactor: 0.3 }, auto: true, price: 1000
+  },
+  {
+    id: 'ar4', name: 'AR-4', kind: 'rifle',
+    damage: 40, headshotMultiplier: 2.5, rpm: 600, magSize: 30, reserve: 90,
+    reloadSec: 2.0, spreadDeg: 0.4, recoilKick: 1.5,
+    falloff: { start: 20, end: 50, minFactor: 0.7 }, auto: true, price: 2500
+  },
+  {
+    id: 'm2', name: 'M-2', kind: 'marksman',
+    damage: 85, headshotMultiplier: 3.0, rpm: 150, magSize: 10, reserve: 30,
+    reloadSec: 2.5, spreadDeg: 0.1, recoilKick: 3.0,
+    falloff: { start: 40, end: 80, minFactor: 0.9 }, auto: false, price: 4000
+  }
+];
 
-export function createWeapon(camera) {
-  const grip = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.hairline), roughness: 0.7, metalness: 0.2 });
-  const body = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.ink), roughness: 0.5, metalness: 0.35 });
-
-  const model = new THREE.Group();
-  const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.1, 0.42), body);
-  const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.045, 0.4), grip);
-  barrel.position.set(0, 0.025, -0.38);
-  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.08, 0.22), grip);
-  stock.position.set(0, -0.02, 0.3);
-  model.add(receiver, barrel, stock);
-  model.position.set(0.24, -0.2, -0.42);
-  camera.add(model);
-
-  const flash = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.24, 0.24),
-    new THREE.MeshBasicMaterial({ color: new THREE.Color(PALETTE.accent), transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }),
-  );
-  flash.position.set(0.24, -0.18, -0.95);
-  flash.visible = false;
-  camera.add(flash);
-
-  const flashLight = new THREE.PointLight(new THREE.Color(PALETTE.accent), 0, 5);
-  flashLight.position.set(0.24, -0.16, -0.6);
-  camera.add(flashLight);
-
-  const state = { mag: MAG_SIZE, reserve: RESERVE, cooldown: 0, reloadLeft: 0, flash: 0, kick: 0 };
-
-  function step(dt) {
-    state.cooldown = Math.max(0, state.cooldown - dt);
-    state.flash = Math.max(0, state.flash - dt);
-    state.kick += (0 - state.kick) * Math.min(1, dt * 14);
-    model.position.z = -0.42 + state.kick;
-    model.rotation.x = state.kick * 2.2;
-    flash.visible = state.flash > 0;
-    flash.rotation.z = state.flash * 30;
-    flashLight.intensity = state.flash > 0 ? 18 : 0;
-    if (state.reloadLeft > 0) {
-      state.reloadLeft = Math.max(0, state.reloadLeft - dt);
-      model.rotation.x = -0.55 * Math.min(1, (RELOAD_TIME - state.reloadLeft) * 2);
-      if (state.reloadLeft === 0) {
-        const need = MAG_SIZE - state.mag;
-        const take = Math.min(need, state.reserve);
-        state.mag += take;
-        state.reserve -= take;
+export function createWeapon(id) {
+  const def = WEAPONS.find(w => w.id === id);
+  if (!def) throw new Error(`Unknown weapon: ${id}`);
+  
+  let reloadStartTime = 0;
+  
+  return {
+    def,
+    ammo: def.magSize,
+    reserve: def.reserve,
+    reloading: false,
+    lastShotAt: 0,
+    
+    canFire(now) {
+      if (this.reloading || this.ammo <= 0) return false;
+      const delayMs = 60000 / def.rpm;
+      return (now - this.lastShotAt) >= delayMs;
+    },
+    
+    fire(now) {
+      if (this.reloading) return { ok: false, reason: 'reloading' };
+      if (this.ammo <= 0) return { ok: false, reason: 'empty' };
+      
+      const delayMs = 60000 / def.rpm;
+      if (now - this.lastShotAt < delayMs) return { ok: false, reason: 'rate' };
+      
+      this.ammo--;
+      this.lastShotAt = now;
+      
+      return { ok: true, spreadRad: MathUtils.degToRad(def.spreadDeg), recoil: def.recoilKick };
+    },
+    
+    startReload(now) {
+      if (this.reloading || this.ammo === def.magSize || this.reserve <= 0) return false;
+      this.reloading = true;
+      reloadStartTime = now;
+      return true;
+    },
+    
+    stepReload(now) {
+      if (!this.reloading) return false;
+      const progress = (now - reloadStartTime) / (def.reloadSec * 1000);
+      if (progress >= 1.0) {
+        const needed = def.magSize - this.ammo;
+        const taken = Math.min(needed, this.reserve);
+        this.ammo += taken;
+        this.reserve -= taken;
+        this.reloading = false;
+        return true;
       }
+      return false;
+    },
+    
+    reloadProgress(now) {
+      if (!this.reloading) return 0;
+      return MathUtils.clamp((now - reloadStartTime) / (def.reloadSec * 1000), 0, 1);
+    },
+    
+    addReserve(n) {
+      this.reserve += n;
+    }
+  };
+}
+
+export function spreadFor(weapon, opts) {
+  let spread = weapon.def.spreadDeg;
+  if (opts.moving) spread *= 1.9;
+  if (opts.crouched) spread *= 0.62;
+  if (opts.airborne) spread *= 2.4;
+  return MathUtils.degToRad(Math.min(spread, 6.0));
+}
+
+export function damageAt(weapon, distance) {
+  const { start, end, minFactor } = weapon.def.falloff;
+  if (distance <= start) return weapon.def.damage;
+  if (distance >= end) return weapon.def.damage * minFactor;
+  const t = (distance - start) / (end - start);
+  return weapon.def.damage * (1 - t * (1 - minFactor));
+}
+
+export function hitscan(origin, direction, colliders) {
+  let closestDist = Infinity;
+  let closestBox = null;
+  
+  const invDx = 1.0 / direction.x;
+  const invDy = 1.0 / direction.y;
+  const invDz = 1.0 / direction.z;
+
+  for (let i = 0; i < colliders.length; i++) {
+    const box = colliders[i];
+    
+    let tmin = (box.min.x - origin.x) * invDx;
+    let tmax = (box.max.x - origin.x) * invDx;
+    if (tmin > tmax) { const temp = tmin; tmin = tmax; tmax = temp; }
+
+    let tymin = (box.min.y - origin.y) * invDy;
+    let tymax = (box.max.y - origin.y) * invDy;
+    if (tymin > tymax) { const temp = tymin; tymin = tymax; tymax = temp; }
+
+    if ((tmin > tymax) || (tymin > tmax)) continue;
+    if (tymin > tmin) tmin = tymin;
+    if (tymax < tmax) tmax = tymax;
+
+    let tzmin = (box.min.z - origin.z) * invDz;
+    let tzmax = (box.max.z - origin.z) * invDz;
+    if (tzmin > tzmax) { const temp = tzmin; tzmin = tzmax; tzmax = temp; }
+
+    if ((tmin > tzmax) || (tzmin > tmax)) continue;
+    if (tzmin > tmin) tmin = tzmin;
+    if (tzmax < tmax) tmax = tzmax;
+
+    if (tmax > 0.0 && tmin < closestDist) {
+      closestDist = tmin > 0.0 ? tmin : 0.0;
+      closestBox = box;
     }
   }
 
-  return {
-    state,
-    step,
-    ready() {
-      return state.mag > 0 && state.cooldown === 0 && state.reloadLeft === 0;
-    },
-    pullTrigger() {
-      state.cooldown = FIRE_GAP;
-      state.flash = MUZZLE_TIME;
-      state.kick = 0.055;
-    },
-    takeRound() {
-      if (state.mag <= 0) return false;
-      state.mag -= 1;
-      return true;
-    },
-    reload() {
-      if (state.reloadLeft > 0 || state.mag === MAG_SIZE || state.reserve === 0) return;
-      state.reloadLeft = RELOAD_TIME;
-    },
-    spread(speed) {
-      return SPREAD_STILL + Math.min(1, speed / MOVE_REFERENCE) * SPREAD_MOVING;
-    },
-    refill() {
-      state.mag = MAG_SIZE;
-      state.reserve = RESERVE;
-      state.cooldown = 0;
-      state.reloadLeft = 0;
-      state.flash = 0;
-      state.kick = 0;
-    },
-  };
+  if (closestBox) {
+    const point = new Vector3(
+      origin.x + direction.x * closestDist,
+      origin.y + direction.y * closestDist,
+      origin.z + direction.z * closestDist
+    );
+    return { point, box: closestBox, distance: closestDist };
+  }
+  return null;
 }

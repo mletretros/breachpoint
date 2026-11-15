@@ -1,0 +1,22 @@
+Read AGENTS.md, game/src/world.js, game/src/weapon.js and game/src/player.js first, then create two new files.
+
+1. game/src/bots.js — export `createBots(scene, opts)` where opts = { world, effects, audio, onKill(bot), onShot(from, to), seed }. It manages four VANTA attackers (the enemy team, hostile to the player) and is driven by match.js. Requirements:
+   - `spawnWave(count, difficulty)` places bots at world.spawns.vanta, each a THREE.Group built from plain geometry (torso box, head sphere, two legs, a jade visor stripe) with team colour read from palette so they read clearly at distance; store { group, position, yaw, health, alive, weapon, target, state, nextThinkAt, aimErrorRad }.
+   - `update(dt, now, playerPos, playerAlive)` runs a small state machine per bot: idle -> advance (walk toward a waypoint along the lane) -> engage (when line of sight to the player within 26 m, stand and shoot) -> reposition (after 8 s or when the player breaks sight) -> dead. Waypoints come from a hardcoded list of lane points that match the map, chosen per bot by seeded PRNG so runs are reproducible.
+   - Line of sight via a coarse AABB step test against world.colliders every 0.35 s, cached per bot, never per frame.
+   - Shooting: each bot fires with a fire interval from its weapon def plus jitter, a growing aim error (0.9 deg at first, worse while the player moves, capped at 4 deg), calls opts.onShot(from, to) so the caller can apply player damage, plays audio.gunshot and spawns effects.tracer at an origin ~0.35 m below and 0.5 m in front of the head.
+   - `damageBot(index, amount, isHeadshot)` applying falloff-free, headshot-multiplied damage, playing effects.impact and audio.hit, and on death setting alive false, playing audio.kill, tipping the group over with a short die animation over 0.6 s (rotation, not physics), then calling opts.onKill. Bots never respawn inside a round.
+   - `aliveCount()`, `clear()`, `raycastBots(origin, direction, maxDist)` returning the nearest { index, point, distance, headshot } using sphere approximations (head r 0.22, body r 0.42) so the player's shots can hit them; this must be cheaper than an AABB walk.
+   - All randomness through a seeded mulberry32 helper defined in this file, no Math.random.
+
+2. game/src/match.js — export `createMatch(opts)` where opts = { world, player, bots, audio, hud, seed }, the round state machine. It owns the game loop's game-level state and exposes:
+   - `state` with phase ('warmup' | 'buy' | 'live' | 'roundEnd' | 'halftime' | 'matchEnd'), roundNumber, scoreVanta, scoreHalo, phaseEndsAt, credits, uplinkProgress (0..1), uplinkHolder ('vanta' | 'halo' | null), timeLeft.
+   - `start()`, `update(dt, now)`, `startBuyPhase()`, `startLive()`, `endRound(winner, reason)`, `buy(weaponId)` (deducting credits, rejecting when unaffordable or the phase is wrong), `creditsForRound(n)`, and `resetForHalf()`.
+   - Rules: first to 5 round wins takes the match; buy phase 8 s at the start of rounds 1 and 4 and 12 s otherwise; live phase 100 s; VANTA (bots) win by killing the player, HALO (the player) win by holding site B7 for 6 s, which fills uplinkProgress only while the player is inside world.pads[0] and at least one bot is alive — the tension is intended; on round end award credits (win 2900, loss 1900, plus 800 per kill capped), reset the player and bots, then transition back to buy.
+   - `damagePlayer` is not owned here: the caller wires player.takeDamage; when player.health hits 0 the live phase must end with a VANTA win through a public `notifyPlayerDeath()` that the caller invokes.
+   - Everything time-based must use the `now` passed in (milliseconds), no internal timers, so the deterministic screenshots can fast-forward the match by calling update with synthetic dt.
+   - Provide `snapshot()` returning a plain object of the state above for the HUD to render, so hud.js never reads internals.
+
+Constraints: plain ES modules, three imported only from 'three', no DOM, no network, no assets, seeded randomness only, and both files must pass `node --experimental-default-type=module --check <file>`. Do not modify player.js, weapon.js, world.js, main.js, hud.js or index.html in this task.
+
+Report files written, line counts, parse results, and one paragraph on how a round flows.
