@@ -107,7 +107,7 @@ export function createBots(scene, opts) {
     spawnWave(count, difficulty) {
       this.clear();
       for (let i = 0; i < count; i++) {
-        const spawn = world.spawns.vanta[i % world.spawns.vanta.length];
+        const spawn = world.spawns.halo[i % world.spawns.halo.length];
         const group = createBotMesh();
         group.position.set(spawn.x, 0, spawn.z);
         scene.add(group);

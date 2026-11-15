@@ -9,6 +9,7 @@ import { createMatch } from './match.js';
 import { createEffects } from './effects.js';
 import { createAudio } from './audio.js';
 import { createHud } from './hud.js';
+import { createViewmodel } from './viewmodel.js';
 
 const FIXED_STEP = 1 / 60;
 const params = new URLSearchParams(window.location.search);
@@ -34,10 +35,11 @@ scene.fog = new THREE.Fog(new THREE.Color(PALETTE.canvas), 18, 46);
 const camera = new THREE.PerspectiveCamera(74, window.innerWidth / window.innerHeight, 0.05, 140);
 scene.add(camera);
 
-const world = createWorld(scene);
+const world = createWorld(scene, renderer);
 const audio = createAudio();
 const effects = createEffects(scene, camera);
 const hud = createHud();
+const viewmodel = createViewmodel(camera, PALETTE);
 
 function onLockChange(locked) {
   if (shot) return;
@@ -87,6 +89,7 @@ const bots = createBots(scene, {
     if (audio.kill) audio.kill();
   }, 
   onShot: (origin, dir) => {
+    if (match.state.phase !== 'live' || !player.alive) return;
     const maxDist = 100;
     const pBody = player.position.clone();
     pBody.y += player.eyeHeight / 2;
@@ -138,7 +141,10 @@ window.addEventListener('keydown', () => {
   }
 });
 
+let lastWeaponId = null;
+
 function step(dt) {
+  const wasPhase = match.state.phase;
   currentTime += dt * 1000;
   
   const look = input.takeLook();
@@ -158,16 +164,29 @@ function step(dt) {
   player.update(dt, playerInput);
   
   const w = player.active();
-  if (w && input.state.keys.has('KeyR')) {
+  if (w && player.alive && match.state.phase === 'live' && input.state.keys.has('KeyR')) {
     w.startReload(currentTime);
   }
+  
   if (w) {
+    if (w.def.id !== lastWeaponId) {
+      viewmodel.set(w.def.id);
+      lastWeaponId = w.def.id;
+    }
+    viewmodel.visible(true);
+    viewmodel.reload(w.reloadProgress(currentTime));
     if (w.stepReload(currentTime)) {
       if (audio.reloadClick) audio.reloadClick();
     }
+  } else {
+    viewmodel.visible(false);
   }
   
-  if (input.state.firing && player.alive) {
+  const isMoving = player.velocity.x ** 2 + player.velocity.z ** 2 > 0.1;
+  viewmodel.lower(player.sprinting);
+  viewmodel.sway(dt, playerInput.mouseDX, playerInput.mouseDY, isMoving, player.crouched);
+
+  if (match.state.phase === 'live' && input.state.firing && player.alive) {
     killedInShot = false;
     lastShotOrigin = null;
     lastShotDirection = null;
@@ -179,6 +198,7 @@ function step(dt) {
     const res = player.tryFire(currentTime, fireOpts);
     
     if (res.ok) {
+      viewmodel.kick(res.recoil);
       if (lastShotOrigin && lastShotDirection) {
         const botHit = bots.raycastBots(lastShotOrigin, lastShotDirection, res.hit ? res.hit.distance : 100);
         if (botHit) {
@@ -192,8 +212,7 @@ function step(dt) {
     }
   }
   
-  bots.update(dt, currentTime, player.position, player.alive);
-  let wasPhase = match.state.phase;
+  if (match.state.phase === 'live') bots.update(dt, currentTime, player.position, player.alive);
   match.update(dt, currentTime);
   const currentPhase = match.state.phase;
   
@@ -212,7 +231,7 @@ function step(dt) {
     if (s.phase === 'buy') {
       if (hud.currentOverlay !== 'buy') { hud.showOverlay('buy', null); hud.currentOverlay = 'buy'; }
     } else if (s.phase === 'roundEnd' || s.phase === 'halftime') {
-      const winner = s.scoreHalo > s.scoreVanta ? 'HALO' : 'VANTA';
+      const winner = s.roundWinner.toUpperCase();
       if (hud.currentOverlay !== 'roundEnd') { hud.showOverlay('roundEnd', winner); hud.currentOverlay = 'roundEnd'; }
     } else if (s.phase === 'matchEnd') {
       const winner = s.scoreHalo > s.scoreVanta ? 'HALO' : 'VANTA';
@@ -272,8 +291,7 @@ function runShot(name) {
   if (name === 'buy') {
     match.state.phase = 'buy';
     match.state.roundNumber = 1;
-    player.respawnAt(0, -17);
-    player.setLook(Math.PI, 0); // Z=-17 looking South (+Z) towards Vanta bots at Z=18
+    player.setLook(0, 0);
     bots.spawnWave(3, 1.0);
     settle(10);
     hud.showOverlay('buy', null);
@@ -309,7 +327,7 @@ function runShot(name) {
     match.buy('armour');
     match.startLive(currentTime);
     match.state.roundNumber = 5;
-    player.respawnAt(-4, -6);
+    player.respawnAt(-6.3, -6);
     player.setLook(Math.PI / 2, 0);
     
     bots.spawnWave(2, 1.0);
@@ -317,16 +335,23 @@ function runShot(name) {
     bots.list[1].position.set(-15, 0, -7);
     
     settle(10);
-    match.state.uplinkProgress = 0.55;
-    match.state.uplinkHolder = 'halo';
+    // Capture a real accumulated transmission using the match's simulation.
+    for (let i = 0; i < 330; i++) {
+      currentTime += FIXED_STEP * 1000;
+      match.update(FIXED_STEP, currentTime);
+    }
     hud.hideOverlay();
   } else if (name === 'end') {
-    match.state.scoreHalo = 5;
+    match.state.scoreHalo = 4;
     match.state.scoreVanta = 4;
     match.state.roundNumber = 9;
-    match.endRound('halo', 'elimination', currentTime);
+    settle(30);
+    match.startLive(currentTime);
+    player.takeDamage(100, player.position);
+    match.notifyPlayerDeath(currentTime);
+    if (match.state.phase !== 'matchEnd') throw new Error('End capture did not finish the match');
     settle(10);
-    hud.showOverlay('matchEnd', 'HALO');
+    hud.showOverlay('matchEnd', match.state.roundWinner.toUpperCase());
   }
   
   const s = match.snapshot();
@@ -337,10 +362,17 @@ function runShot(name) {
     hud.setAmmo(w.ammo, w.reserve, w.reloading);
     hud.setWeapon(w.def.name);
     hud.setCrosshairSpread(0.02);
+    
+    viewmodel.set(w.def.id);
+    if (name === 'play') {
+      viewmodel.kick(w.def.recoilKick || 1.5);
+    }
   }
+  viewmodel.sway(FIXED_STEP, 0, 0, false, false);
   hud.setUplink(s.uplinkProgress, s.uplinkHolder);
   
   paintTwiceThenReady();
+  window.__shotState = { ...s, health: player.health, botsAlive: bots.aliveCount() };
 }
 
 function paintTwiceThenReady() {

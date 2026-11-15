@@ -10,7 +10,7 @@
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, lstatSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-threejs.ts';
@@ -18,6 +18,17 @@ import { buildDossier } from './vendor/makefun-threejs.ts';
 const here = fileURLToPath(new URL('.', import.meta.url));
 const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
+// Fail before copying an incomplete capture set into the judged artifact.
+const screenshots = join(here, 'screenshots');
+if (!existsSync(screenshots)) throw new Error('Capture screenshots before building the dossier');
+const captures = readdirSync(screenshots).filter(name => !name.startsWith('.'));
+if (captures.length < 3 || captures.length > 4) throw new Error('Expected three or four browser captures');
+for (const name of captures) {
+  const info = lstatSync(join(screenshots, name));
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpe?g)$/i.test(name) || !info.isFile() || info.size > 262144) {
+    throw new Error(`Invalid screenshot: ${name}`);
+  }
+}
 mkdirSync(out, { recursive: true });
 cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
 mkdirSync(join(out, 'screenshots'), { recursive: true });

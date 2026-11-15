@@ -1,4 +1,5 @@
 import { PALETTE } from './palette.js';
+import { WEAPONS } from './weapon.js';
 
 export function createHud() {
   const container = document.getElementById('hud');
@@ -16,6 +17,7 @@ export function createHud() {
         --muted: ${PALETTE.muted};
         --accent: ${PALETTE.accent};
         --jade: ${PALETTE.jade};
+        --surface-plate: rgba(27, 31, 36, 0.6);
         --font-ui: system-ui, -apple-system, sans-serif;
         --font-readout: ui-monospace, 'SF Mono', monospace;
       }
@@ -24,6 +26,7 @@ export function createHud() {
         inset: 0;
         font-family: var(--font-ui);
         color: var(--ink);
+        text-shadow: 1px 1px 0 var(--hairline), -1px -1px 0 var(--hairline), 1px -1px 0 var(--hairline), -1px 1px 0 var(--hairline);
         pointer-events: none;
       }
       .hud-top-center {
@@ -41,7 +44,7 @@ export function createHud() {
         gap: 16px;
         font-size: 24px;
         font-weight: bold;
-        background: var(--surface);
+        background: var(--surface-plate);
         padding: 8px 16px;
         border-radius: 4px;
         border: 1px solid var(--hairline);
@@ -51,10 +54,10 @@ export function createHud() {
       .timer-phase {
         font-family: var(--font-readout);
         font-size: 16px;
-        background: var(--surface);
+        background: var(--surface-plate);
         padding: 4px 12px;
         border-radius: 4px;
-        color: var(--ink);
+        color: #fff;
       }
       .hud-bottom-left {
         position: absolute;
@@ -68,12 +71,19 @@ export function createHud() {
         font-family: var(--font-readout);
         font-size: 20px;
         color: var(--jade);
+        background: var(--surface-plate);
+        padding: 4px 12px;
+        border-radius: 4px;
       }
       .health-armour {
         display: flex;
         gap: 16px;
         font-family: var(--font-readout);
         font-size: 32px;
+        color: #fff;
+        background: var(--surface-plate);
+        padding: 4px 12px;
+        border-radius: 4px;
       }
       .hud-bottom-right {
         position: absolute;
@@ -87,6 +97,9 @@ export function createHud() {
       .weapon-name {
         font-size: 20px;
         color: var(--muted);
+        background: var(--surface-plate);
+        padding: 4px 12px;
+        border-radius: 4px;
       }
       .ammo {
         display: flex;
@@ -94,6 +107,10 @@ export function createHud() {
         gap: 8px;
         font-family: var(--font-readout);
         font-size: 48px;
+        color: #fff;
+        background: var(--surface-plate);
+        padding: 4px 12px;
+        border-radius: 4px;
       }
       .ammo.reloading { color: var(--muted); }
       .ammo-reserve { font-size: 20px; color: var(--muted); }
@@ -104,7 +121,7 @@ export function createHud() {
         transform: translateX(-50%);
         width: 300px;
         height: 12px;
-        background: var(--surface);
+        background: var(--surface-plate);
         border: 1px solid var(--hairline);
         border-radius: 6px;
         overflow: hidden;
@@ -186,6 +203,7 @@ export function createHud() {
         border-radius: 8px;
         text-align: center;
         min-width: 300px;
+        transition: transform 0.2s;
       }
       .overlay-title { font-size: 32px; margin: 0 0 16px; }
       .overlay-copy { font-size: 16px; color: var(--muted); margin: 0 0 24px; }
@@ -331,10 +349,7 @@ export function createHud() {
   const buyMenu = document.createElement('div');
   buyMenu.className = 'buy-menu';
   const weapons = [
-    { id: 'vp9', name: 'VP-9', price: 0 },
-    { id: 'k7', name: 'K-7', price: 1250 },
-    { id: 'ar4', name: 'AR-4', price: 2700 },
-    { id: 'm2', name: 'M-2', price: 4200 },
+    ...WEAPONS,
     { id: 'armour', name: 'Armour', price: 650 }
   ];
   const buyBtns = [];
@@ -451,21 +466,26 @@ export function createHud() {
         overlayTitle.textContent = 'Breachpoint';
         overlayCopy.textContent = 'Click to play.';
         playBtn.textContent = 'Play';
+        overlayPanel.style.transform = 'none';
       } else if (kind === 'buy') {
         overlayTitle.textContent = 'Buy Phase';
         overlayCopy.textContent = 'Select your weapon.';
+        overlayPanel.style.transform = 'translateX(-30%)';
       } else if (kind === 'paused') {
         overlayTitle.textContent = 'Paused';
         overlayCopy.textContent = 'Click to resume.';
         playBtn.textContent = 'Resume';
+        overlayPanel.style.transform = 'none';
       } else if (kind === 'roundEnd') {
         overlayTitle.textContent = 'Round Over';
         overlayCopy.textContent = `Winner: ${payload}`;
         playBtn.textContent = 'Next Round';
+        overlayPanel.style.transform = 'none';
       } else if (kind === 'matchEnd') {
         overlayTitle.textContent = 'Match Over';
         overlayCopy.textContent = `Winner: ${payload}`;
         playBtn.textContent = 'Play Again';
+        overlayPanel.style.transform = 'none';
       }
     },
     hideOverlay() {
